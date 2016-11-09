@@ -278,16 +278,23 @@ public class ClusteringAction
                 Map<String,Object> attributes = (Map<String,Object>) asMap.get("attributes"); 
                 if (attributes != null) {
                     if (attributes.containsKey("clusters")) {
-                        /* line below from request looks like this, but for now is always overwritten:
-                         * attributes": {"clusters": ['tap', 'device']},
-                         */
                         List<Cluster> inputClusters = Lists.newArrayList();
-                        inputClusters.add(new Cluster("Irrelevant topic")); // having just one cluster works
-                        inputClusters.add(new Cluster("Macintosh")); // multiple clusters in flat hierarchy as well
-                        
-                        // hierarchical input clusters however seem not to be supported (no error raised but also nothing gets yield)
-                        inputClusters.add(new Cluster("Knowledge Discovery").addSubclusters(new Cluster("SQL"), new Cluster("Introduction")));
-                        
+                        List<Object> requestedClusters = (List<Object>)attributes.get("clusters");
+                        for (int i=0; i<requestedClusters.size(); i++){
+                            String clusterName = null;
+                            Cluster cluster = null;
+                            if (requestedClusters.get(i) instanceof String){
+                                clusterName = (String)requestedClusters.get(i);
+                                cluster =  clusterFromString(clusterName);
+                            } else {
+                                if (requestedClusters.get(i) instanceof List<?>) {
+                                    cluster =  processList((List<Object>)requestedClusters.get(i));
+                                }
+                            }
+                            if(cluster != null){
+                                inputClusters.add(cluster);
+                            }
+                        }
                         attributes.put("clusters", inputClusters);
                     }
                     setAttributes(attributes);
@@ -319,6 +326,43 @@ public class ClusteringAction
                 }
                 throw new ElasticsearchException("Failed to parse source [" + sSource + "]", e);
             }            
+        }
+
+        private Cluster clusterFromString(String clusterName){
+            if(clusterName == null || clusterName.length() == 0){
+                return null;
+            }
+            return new Cluster(clusterName);
+        }
+
+        private Cluster processList(List<Object> currentList){
+            if (currentList == null || currentList.size() == 0)
+                return null;
+
+            String clusterName = (String)currentList.get(0);
+            Cluster cluster = clusterFromString(clusterName);
+
+            if (currentList.size() == 1)
+                return cluster;
+
+            for (int i=1; i<currentList.size(); i++){
+                String subclusterName = null;
+                Cluster subcluster = null;
+                if (currentList.get(i) instanceof String){
+                    subclusterName = (String)currentList.get(i);
+                    subcluster =  clusterFromString(subclusterName);
+                } else {
+                    if (currentList.get(i) instanceof List<?>) {
+                        subcluster =  processList((List<Object>)currentList.get(i));
+                    } else {
+                        return null;
+                    }
+                }
+                if(subcluster != null){
+                    cluster.addSubcluster(subcluster);
+                }
+            }
+            return cluster;
         }
 
         private void parseFieldSpecs(Map<String, List<String>> fieldSpecs) {
