@@ -27,6 +27,7 @@ import org.carrot2.core.LanguageCode;
 import org.carrot2.core.ProcessingException;
 import org.carrot2.core.ProcessingResult;
 import org.carrot2.core.attribute.CommonAttributesDescriptor;
+import org.carrot2.shaded.guava.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -276,6 +277,19 @@ public class ClusteringAction
                 
                 Map<String,Object> attributes = (Map<String,Object>) asMap.get("attributes"); 
                 if (attributes != null) {
+                    if (attributes.containsKey("clusters")) {
+                        /* line below from request looks like this, but for now is always overwritten:
+                         * attributes": {"clusters": ['tap', 'device']},
+                         */
+                        List<Cluster> inputClusters = Lists.newArrayList();
+                        inputClusters.add(new Cluster("Irrelevant topic")); // having just one cluster works
+                        inputClusters.add(new Cluster("Macintosh")); // multiple clusters in flat hierarchy as well
+                        
+                        // hierarchical input clusters however seem not to be supported (no error raised but also nothing gets yield)
+                        inputClusters.add(new Cluster("Knowledge Discovery").addSubclusters(new Cluster("SQL"), new Cluster("Introduction")));
+                        
+                        attributes.put("clusters", inputClusters);
+                    }
                     setAttributes(attributes);
                 }
 
